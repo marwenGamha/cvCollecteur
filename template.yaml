@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "CV RestApi Collecter"
+  
+Globals:
+  Api:
+    BinaryMediaTypes: ['*~1*']
+  Function:
+    Timeout: 200
+    Environment:
+      Variables:
+        CV_TABLE: !Ref "CvCollecterDB"
+
+Resources:
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: cvCollecter
+      StageName: Prod
+      Cors:
+        AllowMethods: "'*'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+
+  BucketCvCollecter:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cvcollecter-attachments
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - GET
+              - DELETE
+              - POST
+            AllowedOrigins:
+              - "*"
+  CvCollecterDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CvCollecterDB
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+      BillingMode: PAY_PER_REQUEST
+
+
+  CvCollecterFunction:
+    Type: AWS::Serverless::Function # https://vgik1ufmpd.execute-api.eu-west-3.amazonaws.com/Prod/upload/cv
+    Properties:
+      CodeUri: src/
+      Handler: app.lambdaHandler
+      Runtime: nodejs14.x
+      Role: !GetAtt lambdaRolesCvcollecter.Arn
+      Architectures:
+        - x86_64
+      Events:
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /upload/cv
+            Method: POST
+            RestApiId: !Ref ApiGatewayApi
+
+  lambdaRolesCvcollecter:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-Lambda-role2
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lambdaUserRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - dynamodb:*
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - s3:GetObject
+                  - execute-api:Invoke
+         
+                Resource: "*"
+
